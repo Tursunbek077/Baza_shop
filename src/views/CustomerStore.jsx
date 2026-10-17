@@ -209,7 +209,15 @@ export default function CustomerStore({
     setSuccessOrder(finalOrderReady);
 
     // 5. Send real-time Telegram Bot Notification to Store Owner (multi-admin capable)
-    telegramService.sendOrderNotification(finalOrderReady);
+    telegramService.sendOrderNotification(finalOrderReady).then((res) => {
+      if (res?.success) {
+        console.log('Telegram order notification muvaffaqiyatli yetkazildi:', res);
+      } else {
+        console.warn('Telegram order notification yetkazilmadi:', res);
+      }
+    }).catch((err) => {
+      console.error('Telegram order alert error:', err);
+    });
   };
 
   // Filter products by search query

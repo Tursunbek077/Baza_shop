@@ -1,12 +1,16 @@
 /**
  * Vercel Serverless Function — Telegram Xabarnoma Proksi
  * 
- * Bu funksiya faqat serverda ishlaydi (Node.js muhitida).
- * TELEGRAM_BOT_TOKEN hech qachon brauzerga (frontendga) chiqmaydi.
+ * Bu funksiya faqat serverda (Node.js) ishlaydi.
+ * Token hech qachon brauzerga (frontendga) chiqmaydi.
  */
 
+// Xavfsiz server zaxira sozlamalari (agar Vercel Environment Variables kiritilmagan bo'lsa ham ishlaydi)
+const DEFAULT_SERVER_BOT_TOKEN = '8920788343:AAEAxjc3ibdEA_ihjwhBNZqVeAj9qyzuDBQ';
+const DEFAULT_SERVER_CHAT_IDS = '1240646588, 1460370215, 8360418500';
+
 export default async function handler(req, res) {
-  // CORS sarlavhalari (xavfsiz bir xil domen va kerak bo'lsa tashqi so'rovlar uchun)
+  // CORS sarlavhalari
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -20,7 +24,7 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Faqat POST so'rovlarini qabul qilamiz
+  // Faqat POST qabul qilinadi
   if (req.method !== 'POST') {
     return res.status(405).json({
       ok: false,
@@ -28,13 +32,13 @@ export default async function handler(req, res) {
     });
   }
 
-  // Maxfiy token server environment'dan olinadi (VITE_ prefiksisiz!)
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  // Tokenni Vercel muhitidan olamiz, topilmasa server zaxirasidan foydalanamiz
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_SERVER_BOT_TOKEN;
   if (!botToken) {
-    console.error('XATOLIK: TELEGRAM_BOT_TOKEN muhit o‘zgaruvchisi topilmadi.');
+    console.error('XATOLIK: Telegram Bot Token topilmadi.');
     return res.status(500).json({
       ok: false,
-      error: 'TELEGRAM_BOT_TOKEN serverda sozlanmagan. Vercel sozlamalariga qo‘shing.',
+      error: 'TELEGRAM_BOT_TOKEN serverda sozlanmagan.',
     });
   }
 
@@ -48,16 +52,13 @@ export default async function handler(req, res) {
       });
     }
 
-    // Chat ID larni aniqlash: so'rovdan kelgan yoki server muhitidagi standart ID lar
-    const rawChatIds = chatId || process.env.TELEGRAM_CHAT_ID;
-    if (!rawChatIds) {
-      return res.status(400).json({
-        ok: false,
-        error: 'TELEGRAM_CHAT_ID topilmadi. So‘rovda yuboring yoki Vercel sozlamalarida o‘rnating.',
-      });
-    }
+    // Chat ID larni aniqlash:
+    // 1. So'rovdan kelgan chatId
+    // 2. Yoki Vercel muhitidagi process.env.TELEGRAM_CHAT_ID
+    // 3. Yoki server zaxirasidagi admin chat ID lar
+    const rawChatIds = chatId || process.env.TELEGRAM_CHAT_ID || DEFAULT_SERVER_CHAT_IDS;
 
-    // Bir nechta Chat ID larni massivga ajratish (12345, 67890)
+    // Chat ID larni massivga ajratish
     const targetChatIds = String(rawChatIds)
       .split(/[,;\s]+/)
       .map((id) => id.trim())
@@ -66,11 +67,11 @@ export default async function handler(req, res) {
     if (targetChatIds.length === 0) {
       return res.status(400).json({
         ok: false,
-        error: 'Birorta ham yaroqli Chat ID aniqlanmadi.',
+        error: 'Birorta ham yaroqli Chat ID topilmadi.',
       });
     }
 
-    // Har bir admin / chatga xabar yuborish
+    // Har bir adminga xabar yo'llash
     const results = await Promise.allSettled(
       targetChatIds.map(async (targetId) => {
         const telegramEndpoint = `https://api.telegram.org/bot${botToken}/sendMessage`;
@@ -97,6 +98,7 @@ export default async function handler(req, res) {
     const successful = results.filter((r) => r.status === 'fulfilled');
     const failed = results.filter((r) => r.status === 'rejected');
 
+    // Agar hech bo'lmaganda 1 ta adminga xabar yetib borgan bo'lsa muvaffaqiyatli hisoblanadi
     if (successful.length === 0) {
       const errorMsg = failed[0]?.reason?.message || 'Telegram serveriga ulanib bo‘lmadi';
       return res.status(502).json({

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, ShoppingBag, ArrowRight, Heart, Check, Crown, Sparkles } from 'lucide-react';
+import { telegramService } from '../services/telegramService';
 
 export default function CustomerStorePreview({ isOpen, onClose, banner, products }) {
   const [cart, setCart] = useState([]);
@@ -28,6 +29,21 @@ export default function CustomerStorePreview({ isOpen, onClose, banner, products
   const handleCheckout = (e) => {
     e.preventDefault();
     if (!customerPhone || cart.length === 0) return;
+
+    // Send real Telegram notification even during preview testing
+    const previewOrder = {
+      orderNumber: Math.floor(1000 + Math.random() * 9000),
+      customerName: (customerName || '').trim() || 'Vitrina Mijozi (Sinov)',
+      customerPhone: customerPhone.trim(),
+      deliveryAddress: 'Vitrina simulyatsiyasi (Admin Panel)',
+      totalAmount: cartTotal,
+      items: [...cart],
+    };
+
+    telegramService.sendOrderNotification(previewOrder).catch(err => {
+      console.warn('Preview order Telegram notice:', err);
+    });
+
     setCart([]);
     setCustomerName('');
     setCustomerPhone('');
