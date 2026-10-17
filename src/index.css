@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    @apply antialiased font-sans selection:bg-rose-500 selection:text-white transition-colors duration-200;
+  }
+}
+
+/* Netflix-style Cinematic Intro Animations */
+@keyframes netflixZoom {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.2;
+    letter-spacing: 0.05em;
+  }
+  10% {
+    opacity: 1;
+    letter-spacing: 0.16em;
+  }
+  75% {
+    transform: scale(1.05);
+    opacity: 1;
+    letter-spacing: 0.22em;
+  }
+  100% {
+    transform: scale(1.22);
+    opacity: 0;
+    letter-spacing: 0.32em;
+  }
+}
+
+@keyframes lightSweep {
+  0% {
+    left: -100%;
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.9;
+  }
+  100% {
+    left: 200%;
+    opacity: 0;
+  }
+}
+
+@keyframes ambientPulse {
+  0%, 100% {
+    transform: scale(0.92);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+.animate-netflix-title {
+  animation: netflixZoom 2.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-light-sweep {
+  animation: lightSweep 2.2s cubic-bezier(0.4, 0, 0.2, 1) 0.5s infinite;
+}
+
+.animate-ambient-glow {
+  animation: ambientPulse 3s ease-in-out infinite;
+}
