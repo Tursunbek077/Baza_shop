@@ -7,13 +7,13 @@ export default function Header({ isDark, onToggleTheme, onOpenNewProduct, onTogg
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-18">
           {/* Logo & Brand */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 flex items-center justify-center shadow-md shadow-rose-500/25 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+            <div className="store-brand-logo w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-gradient-to-tr from-rose-500 via-pink-500 to-amber-400 flex items-center justify-center shadow-md shadow-rose-500/25 shrink-0">
               <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2">
-                <h1 className="font-serif-luxury text-base sm:text-xl font-bold tracking-wider text-stone-900 dark:text-white uppercase truncate">
+                <h1 className="store-brand-title font-serif-luxury text-sm sm:text-xl font-bold tracking-wider text-stone-900 dark:text-white uppercase truncate">
                   Baza_Shop
                 </h1>
                 <span className="hidden sm:inline-flex px-2 py-0.5 text-[10px] font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 rounded-full items-center gap-1 shrink-0">
