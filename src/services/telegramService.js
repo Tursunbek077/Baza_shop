@@ -1,8 +1,7 @@
 import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '../utils/storage';
 
 const DEFAULT_CONFIG = {
-  botToken: import.meta.env.VITE_TELEGRAM_BOT_TOKEN || '8920788343:AAEAxjc3ibdEA_ihjwhBNZqVeAj9qyzuDBQ',
-  chatId: import.meta.env.VITE_TELEGRAM_CHAT_ID || '1240646588, 1460370215, 8360418500',
+  chatId: '',
   enabled: true,
 };
 
@@ -95,13 +94,18 @@ export const formatTelegramCancelMessage = ({ orderId, customerName, customerPho
 
 export const telegramService = {
   /**
-   * Get Telegram bot configuration (Storage -> Env -> Default)
+   * Telegram sozlamalarini olish (Chat ID va yoqilganligi)
+   * DIQQAT: Bot Token hech qachon brauzerda saqlanmaydi, u faqat serverda bo'ladi!
    */
   getConfig() {
     const stored = loadFromStorage(STORAGE_KEYS.TELEGRAM_CONFIG, null);
     if (stored) {
+      // Xavfsizlik maqsadida eski localStorage'dagi botToken'ni tozalaymiz
+      if (stored.botToken) {
+        delete stored.botToken;
+        saveToStorage(STORAGE_KEYS.TELEGRAM_CONFIG, stored);
+      }
       return {
-        botToken: stored.botToken || DEFAULT_CONFIG.botToken,
         chatId: stored.chatId || DEFAULT_CONFIG.chatId,
         enabled: stored.enabled !== undefined ? stored.enabled : true,
       };
@@ -110,11 +114,10 @@ export const telegramService = {
   },
 
   /**
-   * Save Telegram bot configuration
+   * Telegram sozlamalarini saqlash (faqat Chat ID va holat)
    */
-  saveConfig({ botToken, chatId, enabled = true }) {
+  saveConfig({ chatId, enabled = true }) {
     const cleanConfig = {
-      botToken: (botToken || '').trim(),
       chatId: (chatId || '').trim(),
       enabled: Boolean(enabled),
     };
@@ -123,73 +126,56 @@ export const telegramService = {
   },
 
   /**
-   * Parse comma/space separated chat IDs into array
+   * Serverless backend orqali Telegramga xabar yuborish
+   * Brauzer to'g'ridan-to'g'ri api.telegram.org ga EMAS, o'zimizning /api/telegram ga so'rov yuboradi.
    */
-  getChatIdList(chatIdString) {
-    if (!chatIdString) return [];
-    return chatIdString
-      .split(/[,;\s]+/)
-      .map(id => id.trim())
-      .filter(id => id.length > 0);
-  },
-
-  /**
-   * Send text message to one or multiple Telegram chats
-   */
-  async sendMessage(text) {
+  async sendMessage(text, customChatId = null) {
     const config = this.getConfig();
 
     if (!config.enabled) {
       return { success: false, reason: 'disabled' };
     }
 
-    if (!config.botToken || !config.chatId) {
-      console.warn('Telegram Bot bildirishnomasi o‘rnatilmagan (Token yoki Chat ID yetishmaydi).');
-      return { success: false, reason: 'not_configured' };
+    try {
+      const response = await fetch('/api/telegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          chatId: customChatId || config.chatId || undefined,
+          parse_mode: 'HTML',
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.ok) {
+        const errorMsg = data.error || `HTTP ${response.status}: Xabar yuborishda xatolik`;
+        console.warn('Telegram xabarnomasi yetkazilmadi:', errorMsg);
+        return {
+          success: false,
+          error: errorMsg,
+        };
+      }
+
+      return {
+        success: true,
+        totalSent: data.totalSent || 1,
+        failedCount: data.failedCount || 0,
+      };
+    } catch (networkError) {
+      console.error('Telegram API tarmog‘i xatosi:', networkError);
+      return {
+        success: false,
+        error: networkError.message || 'Tarmoqqa ulanish xatosi',
+      };
     }
-
-    const chatIds = this.getChatIdList(config.chatId);
-    if (chatIds.length === 0) {
-      return { success: false, reason: 'no_chat_ids' };
-    }
-
-    const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`;
-    const results = await Promise.allSettled(
-      chatIds.map(async (targetChatId) => {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: targetChatId,
-            text,
-            parse_mode: 'HTML',
-          }),
-        });
-
-        const data = await response.json();
-        if (!response.ok || !data.ok) {
-          throw new Error(data.description || `HTTP ${response.status}`);
-        }
-        return data;
-      })
-    );
-
-    const successful = results.filter(r => r.status === 'fulfilled');
-    const failed = results.filter(r => r.status === 'rejected');
-
-    if (failed.length > 0) {
-      console.warn('Ayrim Telegram chatlarga xabar yetib bormadi:', failed.map(f => f.reason?.message));
-    }
-
-    return {
-      success: successful.length > 0,
-      totalSent: successful.length,
-      failedCount: failed.length,
-    };
   },
 
   /**
-   * Send order notification
+   * Yangi buyurtma xabarnomasini yuborish
    */
   async sendOrderNotification(order) {
     try {
@@ -202,7 +188,7 @@ export const telegramService = {
   },
 
   /**
-   * Send order cancellation notification to store owners
+   * Buyurtma bekor qilingani haqida do'kon egalariga xabar berish
    */
   async sendOrderCancelNotification(cancelData) {
     try {
@@ -215,17 +201,18 @@ export const telegramService = {
   },
 
   /**
-   * Send a test verification message to test bot connection
+   * Aloqani tekshirish uchun test xabarini yo'llash
    */
-  async sendTestMessage() {
+  async sendTestMessage(testChatId = null) {
     const testMessage = [
       `🔔 <b>Baza_Shop — Test Xabarnomasi</b>`,
       ``,
       `✅ Telegram Bot aloqasi muvaffaqiyatli o‘rnatildi!`,
+      `🔒 <i>Xavfsizlik: Bot token serverless muhitida to‘liq himoyalangan.</i>`,
       `📦 Yangi buyurtmalar tushganda barcha ma’lumotlar shu yerga keladi.`,
       `🕒 Vaqt: ${new Date().toLocaleString('uz-UZ')}`,
     ].join('\n');
 
-    return await this.sendMessage(testMessage);
+    return await this.sendMessage(testMessage, testChatId);
   },
 };

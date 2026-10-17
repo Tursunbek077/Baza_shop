@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Send, Check, X, ShieldAlert, CheckCircle2, HelpCircle, Loader2, Sparkles, MessageSquare } from 'lucide-react';
+import { Send, Check, X, ShieldAlert, CheckCircle2, Loader2, Sparkles, ShieldCheck, Server } from 'lucide-react';
 import { telegramService } from '../../services/telegramService';
 
 export default function TelegramSettingsModal({ isOpen, onClose }) {
-  const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
   const [enabled, setEnabled] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
@@ -13,7 +12,6 @@ export default function TelegramSettingsModal({ isOpen, onClose }) {
   useEffect(() => {
     if (isOpen) {
       const config = telegramService.getConfig();
-      setBotToken(config.botToken || '');
       setChatId(config.chatId || '');
       setEnabled(config.enabled !== false);
       setTestResult(null);
@@ -26,7 +24,6 @@ export default function TelegramSettingsModal({ isOpen, onClose }) {
   const handleSave = (e) => {
     e.preventDefault();
     telegramService.saveConfig({
-      botToken: botToken.trim(),
       chatId: chatId.trim(),
       enabled,
     });
@@ -38,41 +35,27 @@ export default function TelegramSettingsModal({ isOpen, onClose }) {
   };
 
   const handleTest = async () => {
-    if (!botToken.trim() || !chatId.trim()) {
-      setTestResult({
-        success: false,
-        message: 'Iltimos, avval Bot Token va Chat ID maydonlarini to‘ldiring.',
-      });
-      return;
-    }
-
     try {
       setIsTesting(true);
       setTestResult(null);
 
-      // Save first so service uses current inputs
-      telegramService.saveConfig({
-        botToken: botToken.trim(),
-        chatId: chatId.trim(),
-        enabled: true,
-      });
-
-      const res = await telegramService.sendTestMessage();
+      // Vaqtinchalik kiritilgan chat ID bilan xabarni jo'natib ko'ramiz
+      const res = await telegramService.sendTestMessage(chatId.trim() || null);
       if (res.success) {
         setTestResult({
           success: true,
-          message: `Test xabari muvaffaqiyatli yuborildi! (${res.totalSent} ta Telegram hisobiga yetkazildi)`,
+          message: `Test xabari muvaffaqiyatli yetkazildi! (${res.totalSent} ta chatga yuborildi)`,
         });
       } else {
         setTestResult({
           success: false,
-          message: res.error || 'Telegram xabar yetkazib berilmadi. Token yoki Chat ID to‘g‘riligini tekshiring.',
+          message: res.error || 'Xabar yuborilmadi. Vercel muhitida TELEGRAM_BOT_TOKEN va Chat ID to‘g‘riligini tekshiring.',
         });
       }
     } catch (err) {
       setTestResult({
         success: false,
-        message: err.message || 'Tarmoq xatosi yuz berdi.',
+        message: err.message || 'Tarmoqqa ulanishda xatolik yuz berdi.',
       });
     } finally {
       setIsTesting(false);
@@ -98,12 +81,25 @@ export default function TelegramSettingsModal({ isOpen, onClose }) {
             Telegram Bot Bildirishnomalari
           </h3>
           <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
-            Saytdan har bir yangi xarid amalga oshirilganda darhol Telegramingizga xabar keladi
+            Saytdan yangi buyurtma tushganda yoki bekor qilinganda do‘kon egasiga xabar boradi
           </p>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSave} className="space-y-4">
+          {/* Security Banner */}
+          <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 flex items-start gap-3">
+            <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+            <div className="text-xs">
+              <p className="font-bold text-emerald-800 dark:text-emerald-300">
+                Serverless Himoya Faol
+              </p>
+              <p className="text-emerald-700 dark:text-emerald-400/90 text-[11px] mt-0.5 leading-relaxed">
+                Bot Token frontendga (brauzerga) hech qachon chiqmaydi. U faqat Vercel server muhitida (<code>TELEGRAM_BOT_TOKEN</code>) xavfsiz saqlanadi.
+              </p>
+            </div>
+          </div>
+
           {/* Enable Toggle */}
           <div className="flex items-center justify-between p-3 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200 dark:border-stone-700">
             <div>
@@ -111,7 +107,7 @@ export default function TelegramSettingsModal({ isOpen, onClose }) {
                 Xabarnomalarni faollashtirish
               </p>
               <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                Buyurtma tushgan zahoti Telegramga yuborish
+                Yangi buyurtmalarni Telegramga yo‘llash
               </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
@@ -125,37 +121,20 @@ export default function TelegramSettingsModal({ isOpen, onClose }) {
             </label>
           </div>
 
-          {/* 1. Bot Token */}
+          {/* Admin Chat ID(s) */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 dark:text-stone-300 mb-1.5">
-              Telegram Bot Token <span className="text-rose-500">*</span>
+              Admin Telegram Chat ID(lar)
             </label>
             <input
               type="text"
-              placeholder="Masalan: 7234567890:AAHq..."
-              value={botToken}
-              onChange={(e) => setBotToken(e.target.value)}
-              className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-3.5 py-2.5 text-xs text-stone-900 dark:text-white outline-none focus:border-sky-500 font-mono transition"
-            />
-            <p className="text-[10px] text-stone-400 mt-1">
-              Telegramdagi <span className="text-sky-500 font-semibold">@BotFather</span> orqali olingan token
-            </p>
-          </div>
-
-          {/* 2. Chat ID(s) */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-stone-700 dark:text-stone-300 mb-1.5">
-              Admin Chat ID <span className="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="Masalan: 123456789 yoki bir nechta: 123456789, 987654321"
+              placeholder="Masalan: 1240646588, 1460370215, 8360418500"
               value={chatId}
               onChange={(e) => setChatId(e.target.value)}
               className="w-full bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 rounded-2xl px-3.5 py-2.5 text-xs text-stone-900 dark:text-white outline-none focus:border-sky-500 font-mono transition"
             />
             <p className="text-[10px] text-stone-400 mt-1">
-              Bir nechta admin uchun vergul bilan ajrating (masalan: <span className="font-mono text-stone-600 dark:text-stone-300">123456, 789012</span>). Shaxsiy ID ni <span className="text-sky-500 font-semibold">@userinfobot</span> orqali bilish mumkin.
+              Bo‘sh qoldirilsa, serverdagi standart <code>TELEGRAM_CHAT_ID</code> ishlatiladi. Bir nechta ID bo‘lsa vergul bilan ajrating.
             </p>
           </div>
 
@@ -177,16 +156,16 @@ export default function TelegramSettingsModal({ isOpen, onClose }) {
             </div>
           )}
 
-          {/* How-to Guide Accordion / Box */}
+          {/* Guide Accordion */}
           <div className="bg-amber-50/70 dark:bg-stone-800/40 border border-amber-200/60 dark:border-stone-700 rounded-2xl p-3 text-[11px] text-stone-600 dark:text-stone-400 space-y-1.5">
             <p className="font-bold text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
-              <HelpCircle className="w-3.5 h-3.5" /> Botni ulash bo‘yicha qo‘llanma:
+              <Server className="w-3.5 h-3.5" /> Vercel Server sozlamalari:
             </p>
             <ol className="list-decimal list-inside space-y-1 pl-1 text-[11px]">
-              <li>Telegramda <b>@BotFather</b> ga kiring va <code>/newbot</code> buyrug‘ini bering.</li>
-              <li>Botingizga nom bering va berilgan <b>HTTP API Token</b>ni yuqoriga qo‘ying.</li>
-              <li>Ochilgan yangi botingizga kirib <b>/start</b> tugmasini bir marta bosing.</li>
-              <li><b>@userinfobot</b> ga kirib o‘z <b>Id</b> raqamingizni oling va Chat ID ga yozing.</li>
+              <li>Vercel loyihangizda <b>Settings &rarr; Environment Variables</b> bo‘limiga kiring.</li>
+              <li><code>TELEGRAM_BOT_TOKEN</code> (VITE_ prefiksisiz!) nomli o‘zgaruvchi yarating.</li>
+              <li><code>TELEGRAM_CHAT_ID</code> ga admin ID raqamlarini kiriting.</li>
+              <li>Qayta <b>Redeploy</b> qiling. Shunda token 100% server orqasida himoyalanadi.</li>
             </ol>
           </div>
 
@@ -195,7 +174,7 @@ export default function TelegramSettingsModal({ isOpen, onClose }) {
             <button
               type="button"
               onClick={handleTest}
-              disabled={isTesting || !botToken || !chatId}
+              disabled={isTesting}
               className="flex-1 py-2.5 px-4 bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               {isTesting ? (
